@@ -1,0 +1,10 @@
+# created by virtualenv automatically
+# Ignorar el entorno virtual y archivos temporales
+.venv/
+__pycache__/
+*.log
+*.sqlite3
+*.pyc
+.DS_Store
+.env
+.idea/
