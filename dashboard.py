@@ -820,9 +820,10 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
         else:
             st.warning("No hay datos suficientes para calcular correlaciones.")
 
+
         # Análisis de impacto de variables anatómicas en incidencias
-        st.sidebar.header("Análisis de Variables Anatómicas")
-        variable_seleccionada = st.sidebar.selectbox("Elige una variable anatómica:", variables_medidas)
+
+        variable_seleccionada = st.multiselect("Elige una variable anatómica:", options = variables_medidas)
 
         st.subheader(f"Relación entre {variable_seleccionada} e Incidencias")
         plt.figure(figsize=(8, 6))
