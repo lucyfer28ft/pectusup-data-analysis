@@ -707,7 +707,6 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
         # Streamlit UI
         st.title("Análisis de Incidencias en la Sujeción de Tornillos")
-        st.sidebar.header("Filtros de Análisis")
 
         st.subheader("Incidencias Intraoperatorias")
 
