@@ -1,0 +1,13 @@
+# created by virtualenv automatically
+
+# Ignorar entorno virtual
+.venv/
+
+# Archivos temporales y compilados
+__pycache__/
+*.log
+.DS_Store
+*.pyc
+
+# Configuración de PyCharm
+.idea/
