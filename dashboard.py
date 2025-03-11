@@ -821,25 +821,6 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
 
 
-
-        # Test Estadístico (t-test)
-        grupo_con_incidencia = df[df['RESULT'] == 'NO OK'][
-            variables_medidas]
-        grupo_sin_incidencia = df[df['RESULT'] == 'OK'][
-            variables_medidas]
-
-        t_stat, p_value = ttest_ind(grupo_con_incidencia, grupo_sin_incidencia, equal_var=False)
-
-        st.subheader("Resultados del Test t")
-        st.write(f"**Valor p:** {p_value:.4f}")
-
-        if p_value < 0.05:
-            st.success(
-                "La diferencia entre los grupos es estadísticamente significativa (p < 0.05), lo que sugiere que esta variable podría estar relacionada con las incidencias.")
-        else:
-            st.warning(
-                "No se encontró una diferencia significativa entre los grupos (p > 0.05), lo que sugiere que esta variable no tiene un impacto claro en las incidencias.")
-
         # Análisis de pacientes con incidencias en rojo
         st.subheader("Análisis de Pacientes con Incidencias en Rojo")
         if not df[df['Fila Roja']].empty:
