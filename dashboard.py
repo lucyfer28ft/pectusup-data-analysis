@@ -825,7 +825,7 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
         # Test Estadístico (t-test)
         grupo_con_incidencia = df[df['RESULT'] == 'NO OK'][
             variables_medidas]
-        grupo_sin_incidencia = df_[df['RESULT'] == 'OK'][
+        grupo_sin_incidencia = df[df['RESULT'] == 'OK'][
             variables_medidas]
 
         t_stat, p_value = ttest_ind(grupo_con_incidencia, grupo_sin_incidencia, equal_var=False)
