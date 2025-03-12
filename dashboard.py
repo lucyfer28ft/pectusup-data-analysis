@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import skew, kurtosis, ttest_ind
@@ -31,10 +32,34 @@ if uploaded_file:
     df = load_data(uploaded_file)
     st.success("Datos cargados correctamente.")
 
+
+    #Filtros Globales
+
+    st.sidebar.header("Filtros Globales")
+
+        #Filtro de Países
+
+    country_options = ["Todos"] + list(df["COUNTRY"].unique())
+    selected_countries = st.sidebar.multiselect("Países:", country_options, default="Todos")
+
+    if "Todos" not in selected_countries:
+        df = df[df["COUNTRY"].isin(selected_countries)]
+
+
+        #Filtro de años
+
+    year_options = ["Todos"] + list(df["YEAR"].unique())
+    selected_years = st.sidebar.multiselect("Años:", year_options, default="Todos")
+
+    if "Todos" not in selected_years:
+        df = df[df["YEAR"].isin(selected_years)]
+
+
     # Pestañas para la organización
     tabs = st.tabs(
         ["Resumen General", "Análisis Comercial", "Análisis Técnico", "Incidencias",
          "Exploración Adicional"])
+
 
     # Resumen General (Fase 1)
     with tabs[0]:
@@ -187,12 +212,21 @@ if uploaded_file:
             screw_counts = df["b (screw length)"].value_counts().sort_index()
             plate_counts = df["a (elevator plate)"].value_counts().sort_index()
 
-            # Gráficos de tornillos y placas
-            fig5 = px.bar(screw_counts, x=screw_counts.index, y=screw_counts.values,
+            # Convertir Series a DataFrame antes de graficar
+            screw_counts_df = screw_counts.reset_index()
+            screw_counts_df.columns = ["Medida de Tornillo (mm)", "Frecuencia"]
+
+            plate_counts_df = plate_counts.reset_index()
+            plate_counts_df.columns = ["Medida de Placa Elevadora (mm)", "Frecuencia"]
+
+            # Graficar tornillos
+            fig5 = px.bar(screw_counts_df, x="Medida de Tornillo (mm)", y="Frecuencia",
                           title="Frecuencia de Medidas de Tornillos")
 
-            fig6 = px.bar(plate_counts, x=plate_counts.index, y=plate_counts.values,
+            # Graficar placas elevadoras
+            fig6 = px.bar(plate_counts_df, x="Medida de Placa Elevadora (mm)", y="Frecuencia",
                           title="Frecuencia de Medidas de Placas Elevadoras")
+
 
             # Forzar el eje X a tratar los valores como categorías para que no redondee las medidas de las placas y nombrar eje x e y
             fig6.update_layout(xaxis_type="category",
@@ -407,13 +441,7 @@ if uploaded_file:
         df["SURGERY DATE"] = pd.to_datetime(df["SURGERY DATE"], errors='coerce')
         df["MONTHTAC"] = df["DATE"].dt.to_period("M").astype(str)
 
-        # Filtrar Países
-        st.sidebar.header("Filtros")
-        country_options = ["Todos"] + list(df["COUNTRY"].unique())
-        selected_countries = st.sidebar.multiselect("Selecciona países", country_options, default="Todos")
 
-        if "Todos" not in selected_countries:
-            df = df[df["COUNTRY"].isin(selected_countries)]
 
         # Evolución anual de los informes por país
         st.subheader("Evolución Anual del Número de Informes por País")
@@ -429,25 +457,16 @@ if uploaded_file:
         # Comparación entre países
         st.subheader("Comparación de Número de Informes e Intervenciones entre Países. Tasa de Conversión")
 
-        # Selector de años
-        años_disponibles = sorted(df["YEAR"].dropna().unique())
-        años_disponibles.insert(0, "Todos")  # Agregar opción "Todos"
-
-        año_seleccionado = st.multiselect("Selecciona el año", options=años_disponibles, default="Todos")
-
-        # Filtrar por años seleccionados
-        df_filtrado = df if "Todos" in año_seleccionado or not año_seleccionado else df[
-            df["YEAR"].isin(año_seleccionado)]
 
         # Determinar título con los años seleccionados
-        if "Todos" in año_seleccionado or not año_seleccionado:
+        if "Todos" in selected_years or not selected_years:
             titulo_grafica = "Comparación de Casos por País (Todos los Años)"
         else:
-            titulo_grafica = f"Comparación de Casos por País ({', '.join(map(str, año_seleccionado))})"
+            titulo_grafica = f"Comparación de Casos por País ({', '.join(map(str, selected_years))})"
 
-        informes_generados = df_filtrado.groupby("COUNTRY").size().reset_index(name="Informes Generados")
-        df_filtrado["Intervenciones"] = df_filtrado["SURGERY DATE"].notna().astype(int)
-        intervenciones = df_filtrado[df_filtrado["Intervenciones"] == 1].groupby("COUNTRY")[
+        informes_generados = df.groupby("COUNTRY").size().reset_index(name="Informes Generados")
+        df["Intervenciones"] = df["SURGERY DATE"].notna().astype(int)
+        intervenciones = df[df["Intervenciones"] == 1].groupby("COUNTRY")[
             "Intervenciones"].count().reset_index()
         comparacion = pd.merge(informes_generados, intervenciones, on="COUNTRY", how="left").fillna(0)
 
@@ -457,26 +476,26 @@ if uploaded_file:
 
         # Tasa de conversión de informes a intervenciones
         st.subheader("Tasa de Conversión de Informes a Intervenciones")
-        informes_generados = df_filtrado.shape[0]
-        informes_convertidos = df_filtrado["SURGERY DATE"].notna().sum()
+        informes_generados = df.shape[0]
+        informes_convertidos = df["SURGERY DATE"].notna().sum()
         tasa_conversion = (informes_convertidos / informes_generados) * 100 if informes_generados > 0 else 0
 
         # Determinar título con los años seleccionados
-        if "Todos" in año_seleccionado or not año_seleccionado:
+        if "Todos" in selected_years or not selected_years:
             titulo_grafica2 = "Tasa de Conversión General (Todos los Años)"
         else:
-            titulo_grafica2 = f"tasa de Conversión General ({', '.join(map(str, año_seleccionado))})"
+            titulo_grafica2 = f"tasa de Conversión General ({', '.join(map(str, selected_years))})"
 
         st.metric(titulo_grafica2, f"{tasa_conversion:.2f}%")
 
         # Determinar título con los años seleccionados
-        if "Todos" in año_seleccionado or not año_seleccionado:
+        if "Todos" in selected_years or not selected_years:
             titulo_grafica3 = "Tasa de Conversión por País (Todos los Años)"
         else:
-            titulo_grafica3 = f"tasa de Conversión por País ({', '.join(map(str, año_seleccionado))})"
+            titulo_grafica3 = f"tasa de Conversión por País ({', '.join(map(str, selected_years))})"
 
         # Comparación de efectividad por país
-        conversion_por_pais = df_filtrado.groupby("COUNTRY")["SURGERY DATE"].count() / df_filtrado.groupby(
+        conversion_por_pais = df.groupby("COUNTRY")["SURGERY DATE"].count() / df.groupby(
             "COUNTRY").size()
         conversion_por_pais = conversion_por_pais.reset_index()
         conversion_por_pais.columns = ["País", "Tasa de Conversión"]
@@ -485,10 +504,10 @@ if uploaded_file:
         st.plotly_chart(fig3, use_container_width=True)
 
         # Determinar título con los años seleccionados
-        if "Todos" in año_seleccionado or not año_seleccionado:
+        if "Todos" in selected_years or not selected_years:
             titulo_grafica4 = "Mapa de Calor de Intervenciones por País (Todos los Años)"
         else:
-            titulo_grafica4 = f"Mapa de Calor de Intervenciones por País ({', '.join(map(str, año_seleccionado))})"
+            titulo_grafica4 = f"Mapa de Calor de Intervenciones por País ({', '.join(map(str, selected_years))})"
 
         # Mapa de calor
         matrix = df.pivot_table(values='Intervenciones', index='MONTHTAC', columns='COUNTRY', aggfunc='sum',
@@ -569,7 +588,8 @@ if uploaded_file:
                 "MAX": "Anchura del Esternón (máxima)",
                 "Sternum Density": "Densidad Esternal",
                 "Sternum Cortical Density (superior)": "Densidad Cortical Esternal (superior)",
-                "Sternum Cortical Density (inferior)": "Densidad Cortical Esternal (inferior)"
+                "Sternum Cortical Density (inferior)": "Densidad Cortical Esternal (inferior)",
+                "AGE": "Edad"
             }, inplace=True)
 
             # Distribución de variables anatómicas clave
@@ -660,8 +680,8 @@ Donde:
 
 **INTERPRETACIÓN**:
 
-Un valor de efectividad más bajo indica una mayor corrección lograda, es decir, que la anatomía del paciente permite corregir mejor la deformidad del esternón.  
-Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación esperada no alcanzó la distancia calculada a través del índice de Haller, lo que sugiere menor éxito en la intervención.
+Un **valor de efectividad más bajo indica una mayor corrección lograda**, es decir, que la anatomía del paciente permite corregir adecuadamente el grado de hundimiento del esternón.  
+Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación esperada no alcanzó la distancia calculada a través del índice de corrección, lo que sugiere menor éxito en la intervención.
 
 <br><br><br>
             """, unsafe_allow_html=True)
@@ -676,22 +696,21 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
             # Mapa de Calor con todas las Variables Anatómicas
 
             st.write(
-                "**Mapa de Calor: Correlaciones entre Variables Anatómicas, Medidas Placas/Tornillos y Efectividad**")
-            variables = ['Índice de Asimetría', 'Índice de Haller', 'Índice de Corrección', 'Índice E',
-                         'Densidad Esternal',
-                         'Densidad Cortical Esternal (superior)', 'Densidad Cortical Esternal (inferior)',
+                "**Mapa de Calor: Correlaciones entre Variables Anatómicas, Medidas Placas/Tornillos, Edad y Efectividad**")
+            variables = ['Índice de Asimetría', 'Índice de Haller', 'Índice de Corrección', 'Rotación Esternal',
+                         'Densidad Esternal','Densidad Cortical Esternal (superior)', 'Densidad Cortical Esternal (inferior)',
                          'b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
-                         'Anchura del Esternón (máxima)', 'Efectividad']
-            df_anatomico = df[variables].apply(pd.to_numeric, errors='coerce')
-            correlaciones_anatomicas = df_anatomico.corr()
+                         'Anchura del Esternón (máxima)','Elevación Potencial', 'Edad', 'Efectividad']
+            df_correlacion = df[variables].apply(pd.to_numeric, errors='coerce')
+            correlaciones_anatomicas = df_correlacion.corr()
 
             if not correlaciones_anatomicas.empty:
                 fig, ax = plt.subplots(figsize=(12, 8))
                 sns.heatmap(correlaciones_anatomicas, annot=True, cmap='coolwarm', fmt='.2f', ax=ax)
-                plt.title('Mapa de Calor: Relación entre Variables Anatómicas')
+                plt.title('Mapa de Calor: Relación entre Variables de Interés')
                 st.pyplot(fig)
                 st.write(
-                    "**Interpretación:** Este mapa de calor muestra las correlaciones entre diferentes variables anatómicas, medidas de tornillos y placas y efectividad. ")
+                    "**Interpretación:** Este mapa de calor muestra las correlaciones entre diferentes variables anatómicas, medidas de tornillos y placas, edad y efectividad. ")
                 st.write(
                     "Los valores cercanos a **1 o -1** indican una relación fuerte entre dos variables. Un valor positivo sugiere que ambas aumentan juntas, mientras que un valor negativo indica que cuando una sube, la otra baja. Valores cercanos a 0 indican poca o ninguna relación. Esto permite identificar patrones anatómicos que podrían estar asociados a incidencias.")
             else:
@@ -699,14 +718,13 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
                     "No hay suficientes datos numéricos para generar el mapa de calor de correlaciones anatómicas.")
 
     with tabs[3]:
-        st.header("Incidencias")
+        st.header("Análisis de Incidencias")
         st.write(
             "En esta sección se analizan las incidencias relacionadas con la sujeción de los tornillos intraplacas y otros problemas detectados.")
 
         df['Fila Roja'] = df.apply(contiene_palabra_clave, axis=1)
 
         # Streamlit UI
-        st.title("Análisis de Incidencias en la Sujeción de Tornillos")
 
         st.subheader("Incidencias Intraoperatorias")
 
@@ -719,21 +737,42 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
         st.write(f"**Número de incidencias intraoperatorias detectadas**: {len(df_incidencias_intraoperatorias)}")
         st.dataframe(df_incidencias_intraoperatorias)
 
-        # Frecuencia de Incidencias
-        st.write("**Frecuencia de Incidencias Intraoperatorias**")
-        frecuencia_incidencias = df_incidencias_intraoperatorias['COMPLICATIONS INTRAOPERATORY'].value_counts()
+
+
+        # Frecuencia de Incidencias Intraoperatorias
+        st.write("## 📊 Frecuencia de Incidencias Intraoperatorias")
+
+        # Contar incidencias
+        frecuencia_incidencias = df_incidencias_intraoperatorias[
+            'COMPLICATIONS INTRAOPERATORY'].value_counts().reset_index()
+        frecuencia_incidencias.columns = ['Tipo de Incidencia', 'Frecuencia']
+
+        # Verificar si hay datos
         if not frecuencia_incidencias.empty:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.countplot(data=df_incidencias_intraoperatorias, x='COMPLICATIONS INTRAOPERATORY',
-                          order=frecuencia_incidencias.index,
-                          ax=ax)
-            plt.xticks(rotation=45)
-            plt.xlabel('Tipo de Incidencia')
-            plt.ylabel('Frecuencia')
-            plt.title('Distribución de Incidencias')
-            st.pyplot(fig)
+            # Crear gráfico interactivo con Plotly
+            fig = px.bar(
+                frecuencia_incidencias,
+                x='Tipo de Incidencia',
+                y='Frecuencia',
+                title="Distribución de Incidencias Intraoperatorias",
+                labels={'Frecuencia': 'Número de Casos'},
+                color='Frecuencia',
+                color_continuous_scale='Blues',
+                text_auto=True
+            )
+
+            # Mejorar interactividad
+            fig.update_layout(
+                xaxis=dict(tickangle=45),  # Rotar etiquetas del eje X
+                yaxis_title="Frecuencia",
+                xaxis_title="Tipo de Incidencia",
+                template="plotly_white",  # Tema limpio y profesional
+            )
+
+            # Mostrar en Streamlit
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("No hay incidencias suficientes para analizar.")
+            st.warning("⚠️ No hay incidencias suficientes para analizar.")
 
         # Filtro de incidencias en el follow-up
         st.subheader("Incidencias Follow-Up")
@@ -801,15 +840,15 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
         # Análisis de correlaciones con medidas anatómicas
         st.subheader("Correlaciones con Factores Anatómicos de los Registros con Indicencias")
-        variables_medidas = ['b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
+        variables_interes = ['b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
                              'Anchura del Esternón (máxima)',
-                             'Índice de Haller', 'Índice de Asimetría', 'Índice E',
+                             'Índice de Haller', 'Índice de Asimetría', 'Índice de Corrección',
                              'Rotación Esternal', 'Densidad Esternal', 'Densidad Cortical Esternal (superior)',
-                             'Densidad Cortical Esternal (inferior)']
+                             'Densidad Cortical Esternal (inferior)',]
 
-        df_incidencias[variables_medidas] = df_incidencias[variables_medidas].apply(
+        df_incidencias[variables_interes] = df_incidencias[variables_interes].apply(
             pd.to_numeric, errors='coerce')
-        correlaciones = df_incidencias[variables_medidas].corr()
+        correlaciones = df_incidencias[variables_interes].corr()
 
         if not correlaciones.empty:
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -819,18 +858,59 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
         else:
             st.warning("No hay datos suficientes para calcular correlaciones.")
 
-
-
         # Análisis de pacientes con incidencias en rojo
-        st.subheader("Análisis de Pacientes con Incidencias en Rojo")
-        if not df[df['Fila Roja']].empty:
-            st.write("Pacientes con incidencias marcadas en rojo en el Excel:")
-            st.dataframe(df[df['Fila Roja']])
-        else:
-            st.warning("No se encontraron pacientes con filas en rojo en el Excel.")
+        st.subheader("🟥 Pacientes con Incidencias en Rojo vs. Base de Datos Completa")
+        st.write("Pacientes con incidencias marcadas en rojo en el Excel:")
+        st.dataframe(df[df['Fila Roja']])
 
-        st.success("Análisis completado. Explora los gráficos y datos interactivos.")
+        df_rojo = df[df['Fila Roja']]
+        df_normal = df[~df['Fila Roja']]
+
+        # Calcular medias
+        medias_rojo = df_rojo[variables_interes].mean()
+        medias_total = df_normal[variables_interes].mean()
+
+        # Prueba estadística (t-test)
+        p_values = [ttest_ind(df_rojo[var].dropna(), df_normal[var].dropna(), equal_var=False).pvalue for var in
+                    variables_interes]
+
+        # Construcción del DataFrame comparativo
+        df_comparacion = pd.DataFrame({"Variable": variables_interes,
+                                       "Media Incidencias en Rojo": medias_rojo,
+                                       "Media General": medias_total,
+                                       "P-valor": p_values})
+
+
+        # Resaltar diferencias significativas
+        def highlight_significant(val):
+            return 'background-color: red; color: white' if val < 0.05 else ''
+
+
+        # Resaltar diferencias significativas
+        def highlight_significant(val):
+            if val < 0.45:
+                return 'background-color: darkred; color: white'
+            elif val < 0.65:
+                return 'background-color: orange; color: black'
+            elif val > 0.85:
+                return 'background-color: green; color: black'
+            return ''
+
+        st.write("📊 Comparación de medidas entre incidencias en rojo y la base de datos completa:")
+        st.dataframe(df_comparacion.style.applymap(highlight_significant, subset=['P-valor']))
+
+        # Gráfico de diferencias
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=df_comparacion["Variable"], y=df_comparacion["Media Incidencias en Rojo"],
+                             name="Media Incidencias en Rojo", marker_color='red'))
+        fig.add_trace(go.Bar(x=df_comparacion["Variable"], y=df_comparacion["Media General"],
+                             name="Media General", marker_color='blue'))
+        fig.update_layout(title="Comparación de Medias entre Pacientes con Incidencias en Rojo y el Resto",
+                          xaxis_title="Variable", yaxis_title="Valor Medio", barmode='group')
+        st.plotly_chart(fig)
+
+        st.success("✅ Análisis completado. Explora las visualizaciones interactivas y obtén insights en tiempo real.")
 
     with tabs[4]:
         st.header("Exploración Adicional")
-        st.write("Sección abierta para nuevas correlaciones, patrones y análisis adicionales.")
+        st.write("Sección abierta para explorar nuevos patrones y análisis adicionales avanzados.")
