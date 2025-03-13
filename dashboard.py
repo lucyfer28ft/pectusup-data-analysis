@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import skew, kurtosis, ttest_ind
+from scipy.stats import skew, kurtosis, ttest_ind, pearsonr
 
 
 # Cargar datos
@@ -44,6 +44,10 @@ if uploaded_file:
 
     if "Todos" not in selected_countries:
         df = df[df["COUNTRY"].isin(selected_countries)]
+    elif len(selected_countries) == 0:
+        st.write("Ningún país ha sido seleccionado")
+
+
 
 
         #Filtro de años
@@ -444,7 +448,7 @@ if uploaded_file:
 
 
         # Evolución anual de los informes por país
-        st.subheader("Evolución Anual del Número de Informes por País")
+        st.subheader("Evolución Anual del Número de Informes e Intervenciones por País")
         yearly_cases = df.groupby(["YEAR", "COUNTRY"]).size().reset_index(name="Número de Informes")
         fig1 = px.line(yearly_cases, x="YEAR", y="Número de Informes", color="COUNTRY",
                        title="Evolución de Informes por País", markers=True)
@@ -453,6 +457,21 @@ if uploaded_file:
             xaxis_title="Año"  # Nombre del eje Y
         )
         st.plotly_chart(fig1, use_container_width=True)
+
+
+        # Evolución anual de las intervenciones por país
+
+        df["Intervenciones"] = df["SURGERY DATE"].notna().astype(int)
+        df_intervenciones = df[df["Intervenciones"] == 1]
+
+        yearly_surgery_cases = df_intervenciones.groupby(["YEAR", "COUNTRY"]).size().reset_index(name="Número de Intervenciones")
+        fig1 = px.line(yearly_surgery_cases, x="YEAR", y="Número de Intervenciones", color="COUNTRY",
+                       title="Evolución de Intervenciones por País", markers=True)
+
+        fig1.update_layout(xaxis_title="Año")  # Nombre del eje Y
+
+        st.plotly_chart(fig1, use_container_width=True)
+
 
         # Comparación entre países
         st.subheader("Comparación de Número de Informes e Intervenciones entre Países. Tasa de Conversión")
@@ -465,9 +484,7 @@ if uploaded_file:
             titulo_grafica = f"Comparación de Casos por País ({', '.join(map(str, selected_years))})"
 
         informes_generados = df.groupby("COUNTRY").size().reset_index(name="Informes Generados")
-        df["Intervenciones"] = df["SURGERY DATE"].notna().astype(int)
-        intervenciones = df[df["Intervenciones"] == 1].groupby("COUNTRY")[
-            "Intervenciones"].count().reset_index()
+        intervenciones = df[df["Intervenciones"] == 1].groupby("COUNTRY")["Intervenciones"].count().reset_index()
         comparacion = pd.merge(informes_generados, intervenciones, on="COUNTRY", how="left").fillna(0)
 
         fig2 = px.bar(comparacion, x="COUNTRY", y=["Informes Generados", "Intervenciones"], barmode='group',
@@ -594,8 +611,8 @@ if uploaded_file:
 
             # Distribución de variables anatómicas clave
             st.subheader("Distribución de Variables Anatómicas")
-            variables = ["Índice de Haller", "Índice de Asimetría", "Índice E",
-                         "Rotación Esternal", "Densidad Esternal", "Densidad Cortical Esternal (superior)",
+            variables = ["Índice de Haller", "Índice de Asimetría", "Índice de Corrección",
+                         "Rotación Esternal", "Elevación Potencial", "Anchura del Esternón (mínima)", "Anchura del Esternón (máxima)", "Densidad Esternal", "Densidad Cortical Esternal (superior)",
                          "Densidad Cortical Esternal (inferior)"]
             selected_var = st.selectbox("Selecciona una variable para visualizar la distribución:", variables)
 
@@ -632,25 +649,17 @@ if uploaded_file:
 
             # Evaluación de correlaciones
             st.subheader("Correlación entre Variables del TAC")
-            st.write(df[df["Densidad Cortical Esternal (superior)"] > 3000])
-            correlation_pairs = [("Índice de Haller", "Elevación Potencial"),
-                                 ("Índice de Asimetría", "Rotación Esternal"),
-                                 ("Rotación Esternal", "Efectividad")]
-            selected_pair = st.selectbox("Selecciona dos variables para evaluar su correlación:", correlation_pairs)
 
-            fig_scatter = px.scatter(df, x=selected_pair[0], y=selected_pair[1], trendline="ols",
-                                     title=f"Correlación entre {selected_pair[0]} y {selected_pair[1]}")
-            st.plotly_chart(fig_scatter, use_container_width=True)
 
-            # Análisis de impacto en la efectividad del implante
+                # Análisis de impacto en la efectividad del implante
 
-            # Calcular métricas de efectividad
+                # Calcular métricas de efectividad
             df["Índice E"] = df["Índice E"] - df["Índice D"]
             df["Efectividad"] = df["Índice E"] - df["Elevación Potencial"]
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            st.subheader("Impacto de Parámetros Anatómicos en la Efectividad del Implante")
+            st.markdown("#### **Efectividad**")
 
             st.markdown("""<br><br>
 **DEFINICIÓN DE EFECTIVIDAD**
@@ -686,17 +695,14 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 <br><br><br>
             """, unsafe_allow_html=True)
 
-            impacto_var = st.selectbox("Selecciona una variable para analizar su impacto en la efectividad:",
-                                       ["Índice de Haller", "Índice de Asimetría", "Rotación Esternal"])
 
-            fig_impact = px.scatter(df, x=impacto_var, y="Efectividad", trendline="ols",
-                                    title=f"Impacto de {impacto_var} en la Efectividad del Implante")
-            st.plotly_chart(fig_impact, use_container_width=True)
 
-            # Mapa de Calor con todas las Variables Anatómicas
+                   # Mapa de Calor con todas las Variables Anatómicas
 
-            st.write(
-                "**Mapa de Calor: Correlaciones entre Variables Anatómicas, Medidas Placas/Tornillos, Edad y Efectividad**")
+
+            st.markdown("#### **Mapa de Calor: Correlaciones entre Variables Anatómicas, Medidas Placas/Tornillos, Edad y Efectividad**")
+
+
             variables = ['Índice de Asimetría', 'Índice de Haller', 'Índice de Corrección', 'Rotación Esternal',
                          'Densidad Esternal','Densidad Cortical Esternal (superior)', 'Densidad Cortical Esternal (inferior)',
                          'b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
@@ -710,12 +716,107 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
                 plt.title('Mapa de Calor: Relación entre Variables de Interés')
                 st.pyplot(fig)
                 st.write(
-                    "**Interpretación:** Este mapa de calor muestra las correlaciones entre diferentes variables anatómicas, medidas de tornillos y placas, edad y efectividad. ")
+                    "**INTERPRETACIÓN:** "
+                    "Este mapa de calor muestra las correlaciones entre diferentes variables anatómicas, medidas de tornillos y placas, edad y efectividad. ")
                 st.write(
                     "Los valores cercanos a **1 o -1** indican una relación fuerte entre dos variables. Un valor positivo sugiere que ambas aumentan juntas, mientras que un valor negativo indica que cuando una sube, la otra baja. Valores cercanos a 0 indican poca o ninguna relación. Esto permite identificar patrones anatómicos que podrían estar asociados a incidencias.")
+                # Mostrar información sobre la escala de correlación de Taylor (1990)
+                st.markdown("""
+                **📊 Interpretación de la correlación de Pearson según Taylor (1990)**
+
+                Esta escala se utiliza en **medicina y diagnóstico por imágenes**, donde las correlaciones suelen ser más bajas debido a la variabilidad natural de los datos clínicos.
+
+                | **Valor de r**  | **Interpretación** |
+                |---------------|----------------|
+                | **0.00 - 0.19**  | 🔵 Muy débil |
+                | **0.20 - 0.39**  | 🟢 Débil |
+                | **0.40 - 0.59**  | 🟡 Moderada |
+                | **0.60 - 0.79**  | 🟠 Fuerte |
+                | **0.80 - 1.00**  | 🔴 Muy fuerte |
+
+                📖 **Fuente:**  
+                Taylor, R. (1990). *Interpretation of the correlation coefficient: A basic review.*  
+                📄 *Journal of Diagnostic Medical Sonography, 6(1), 35-39.*  
+                🔗 [DOI: 10.1177/875647939000600106](https://doi.org/10.1177/875647939000600106)
+                """, unsafe_allow_html=True)
+
             else:
                 st.warning(
                     "No hay suficientes datos numéricos para generar el mapa de calor de correlaciones anatómicas.")
+
+
+                   # Visualización de correlaciones de interés
+
+            st.markdown("#### Visualización de correlaciones de interés")
+
+            correlation_pairs = [("Índice de Haller", "Elevación Potencial"),
+                                 ("Índice de Asimetría", "Rotación Esternal"),
+                                 ("Densidad Esternal", "Edad"),
+                                 ("Efectividad", "Índice de Haller"),
+                                 ("Efectividad", "Rotación Esternal")]
+
+            selected_pair = st.selectbox("Selecciona dos variables para evaluar su correlación:", correlation_pairs)
+
+            selected_x = selected_pair[0].strip()
+            selected_y = selected_pair[1].strip()
+
+            df_corr = df_correlacion[[selected_x, selected_y]].dropna()
+
+
+            if len(df_filtered) > 1:
+                correlation, p_value = pearsonr(df_corr[selected_x], df_corr[selected_y])
+
+                # 🔹 Interpretación según Taylor (1990)
+                if abs(correlation) >= 0.80:
+                    interpretation = "🟢 **Muy fuerte**"
+                elif abs(correlation) >= 0.60:
+                    interpretation = "🟢 **Fuerte**"
+                elif abs(correlation) >= 0.40:
+                    interpretation = "🔵 **Moderada**"
+                elif abs(correlation) >= 0.20:
+                    interpretation = "🟡 **Débil**"
+                else:
+                    interpretation = "🔴 **Muy débil**"
+
+
+                # Crear gráfico de dispersión
+                fig_scatter = px.scatter(
+                    df_corr, x=selected_x, y=selected_y, trendline="ols",
+                    title=f"Correlación entre {selected_x} y {selected_y}"
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+
+
+                # Mensaje con la interpretación de la correlación
+                if abs(correlation) >= 0.80:
+                    st.success(
+                        f"✅ **Muy fuerte:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        "Existe una asociación muy alta entre estas variables, lo que indica que una puede predecir la otra con gran precisión.")
+
+                elif abs(correlation) >= 0.60:
+                    st.success(
+                        f"✅ **Fuerte:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        "Las variables están fuertemente relacionadas, aunque pueden existir otros factores que influyan en la variabilidad.")
+
+                elif abs(correlation) >= 0.40:
+                    st.info(
+                        f"🔵 **Moderada:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        "Existe una relación clara entre las variables, pero también pueden intervenir otros factores.")
+
+                elif abs(correlation) >= 0.20:
+                    st.warning(
+                        f"🟡 **Débil:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        "Hay una relación leve, pero no lo suficientemente fuerte como para ser un predictor fiable.")
+
+                else:
+                    st.error(
+                        f"❌ **Muy débil:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        "No hay evidencia de una relación significativa entre las variables.")
+
+            else:
+                st.error("❌ No hay suficientes datos para calcular la correlación.")
+
+
 
     with tabs[3]:
         st.header("Análisis de Incidencias")
