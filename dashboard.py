@@ -931,6 +931,9 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
                 template="plotly_white",  # Tema limpio y profesional
             )
 
+
+
+
             # Mostrar en Streamlit
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -953,6 +956,46 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
         st.write(f"**Número de incidencias durante el follow-up**: {len(df_incidencias_follow_up)}")
         st.dataframe(df_incidencias_follow_up)
+
+
+        st.write("#### 📊 Frecuencia de Incidencias Follow-Up")
+
+        # Unir ambas columnas en una sola serie y contar las ocurrencias
+        frecuencia_incidencias = (
+            pd.concat([df_incidencias_follow_up['DIAGNOSIS 1'], df_incidencias_follow_up['DIAGNOSIS 2']])
+            .value_counts()
+            .reset_index()
+        )
+        frecuencia_incidencias.columns = ['Tipo de Incidencia', 'Frecuencia']
+
+        # Verificar si hay datos
+        if not frecuencia_incidencias.empty:
+            # Crear gráfico interactivo con Plotly
+            fig = px.bar(
+                frecuencia_incidencias,
+                x='Tipo de Incidencia',
+                y='Frecuencia',
+                title="Distribución de Incidencias Follow-Up",
+                labels={'Frecuencia': 'Número de Casos'},
+                color='Frecuencia',
+                color_continuous_scale='Blues',
+                text_auto=True
+            )
+
+            # Mejorar interactividad
+            fig.update_layout(
+                xaxis=dict(tickangle=45),  # Rotar etiquetas del eje X
+                yaxis_title="Frecuencia",
+                xaxis_title="Tipo de Incidencia",
+                template="plotly_white",  # Tema limpio y profesional
+            )
+
+            # Mostrar en Streamlit
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ No hay incidencias suficientes para analizar.")
+
+
 
         # Filtro de incidencias en la explantación
         st.subheader("Incidencias Explantación")
