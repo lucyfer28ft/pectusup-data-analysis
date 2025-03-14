@@ -789,11 +789,11 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
                 | **Valor de r**  | **Interpretación** |
                 |---------------|----------------|
-                | **0.00 - 0.19**  | 🔵 Muy débil |
-                | **0.20 - 0.39**  | 🟢 Débil |
-                | **0.40 - 0.59**  | 🟡 Moderada |
-                | **0.60 - 0.79**  | 🟠 Fuerte |
-                | **0.80 - 1.00**  | 🔴 Muy fuerte |
+                | **0.00 - 0.19**  | 🔴 Muy débil |
+                | **0.20 - 0.39**  | 🟠 Débil |
+                | **0.40 - 0.59**  | 🔵 Moderada |
+                | **0.60 - 0.79**  | 🟢 Fuerte |
+                | **0.80 - 1.00**  | ✅ Muy fuerte |
 
                 📖 **Fuente:**  
                 Taylor, R. (1990). *Interpretation of the correlation coefficient: A basic review.*  
@@ -829,7 +829,7 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
                 # 🔹 Interpretación según Taylor (1990)
                 if abs(correlation) >= 0.80:
-                    interpretation = "🟢 **Muy fuerte**"
+                    interpretation = "✅ **Muy fuerte**"
                 elif abs(correlation) >= 0.60:
                     interpretation = "🟢 **Fuerte**"
                 elif abs(correlation) >= 0.40:
@@ -856,7 +856,7 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
                 elif abs(correlation) >= 0.60:
                     st.success(
-                        f"✅ **Fuerte:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
+                        f"🟢 **Fuerte:** La correlación entre **{selected_x}** y **{selected_y}** es de **{correlation:.2f}**. "
                         "Las variables están fuertemente relacionadas, aunque pueden existir otros factores que influyan en la variabilidad.")
 
                 elif abs(correlation) >= 0.40:
