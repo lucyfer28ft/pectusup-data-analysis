@@ -73,12 +73,6 @@ if uploaded_file:
 
         st.subheader("Estado de los Casos")
 
-        # Número de casos totales
-        num_filas = df.shape[0]
-        st.write(f"Número de casos totales: **{num_filas}**")
-
-        df["YEAR"] = pd.to_datetime(df["DATE"], errors='coerce').dt.year
-
         # Definir el mapeo de valores a nombres
         estado_map = {
             1: "1: Caso Abierto",
@@ -94,51 +88,90 @@ if uploaded_file:
         # Estado de los casos totales
         status_counts = df["STATE NUMBER"].value_counts()
         fig_pie = px.pie(names=status_counts.index, values=status_counts.values,
-                         title="Distribución de Casos Totales por Estado",
+                         title="Distribución de Informes Totales por Estado",
                          labels={"names": "STATE NUMBER"})
         st.plotly_chart(fig_pie)
 
         # Estado de los casos según año
 
         # Crear DataFrame agrupado correctamente
-        sunburst_data = df.groupby(["YEAR", "STATE NUMBER"]).size().reset_index(name="Casos")
+        sunburst_data = df.groupby(["YEAR", "STATE NUMBER"]).size().reset_index(name="Informes")
 
-        fig_sunburst = px.sunburst(sunburst_data, path=["YEAR", "STATE NUMBER"], values="Casos",
-                                   title="Distribución de Casos por Año y Estado")
+        fig_sunburst = px.sunburst(sunburst_data, path=["YEAR", "STATE NUMBER"], values="Informes",
+                                   title="Distribución de Informes por Año y Estado")
         # Agregar porcentaje a las etiquetas
         fig_sunburst.update_traces(textinfo="label+percent entry")
 
         st.plotly_chart(fig_sunburst)
 
-        # 🔹 Evolución de los casos totales
-        st.subheader("Evolución de los Casos por Año")
+        # 🔹 Evolución de los Informes Totales, Intervensiones y Explantaciones por Año
+        st.subheader("Evolución Informes, Intervenciones y Explantaciones por Año")
 
-        # Asegurar que la columna DATE existe y convertirla a formato de año
-        if "DATE" in df.columns:
-            df["YEAR"] = pd.to_datetime(df["DATE"], errors="coerce").dt.year
-        else:
-            st.error("La columna 'DATE' no se encuentra en el DataFrame.")
 
-        # Contar casos por año
+        # Convertir columnas de fecha
+        df["DATE"] = pd.to_datetime(df["DATE"], errors='coerce')
+        df["SURGERY DATE"] = pd.to_datetime(df["SURGERY DATE"], errors='coerce')
+        df["MONTHTAC"] = df["DATE"].dt.to_period("M").astype(str)
+
+        #Calcular número de casos operados/intervenidos
+        df["Intervenciones"] = df["SURGERY DATE"].notna().astype(int)
+        df_intervenciones = df[df["Intervenciones"] == 1]
+
+
+        #Calcular número de casos explantados
+        df["Explantaciones"] = df["DATE2"].notna().astype(int)
+        df_explantaciones = df[df["Explantaciones"] == 1]
+
+
+        # Contar casos, intervenciones y explantaciones por año
         yearly_counts = df.groupby("YEAR").size().reset_index(name="Casos")
+        yearly_counts_interv = df_intervenciones.groupby("YEAR").size().reset_index(name="Casos")
+        yearly_counts_explant = df_explantaciones.groupby("YEAR").size().reset_index(name="Casos")
 
         # Calcular el total de casos en todos los años
         total_cases = yearly_counts["Casos"].sum()
+        total_interv = yearly_counts_interv["Casos"].sum()
+        total_explant = yearly_counts_explant["Casos"].sum()
 
-        # Calcular porcentaje respecto al total de TODOS los casos
-        yearly_counts["percentage"] = (yearly_counts["Casos"] / total_cases) * 100  # ✅ CORREGIDO
+
+        # Calcular porcentaje respecto al total de TODOS los casos, intervenciones o explantaciones
+        yearly_counts["percentage"] = (yearly_counts["Casos"] / total_cases) * 100
+        yearly_counts_interv["percentage"] = (yearly_counts_interv["Casos"] / total_interv) * 100
+        yearly_counts_explant["percentage"] = (yearly_counts_explant["Casos"] / total_explant) * 100
+
+
+        #Seleccionar informes, intervenciones o explantaciones para visualizar en la gráfica
+
+        # Crear diccionario con las opciones
+        options = {
+            "Informes Totales": yearly_counts,
+            "Intervenciones": yearly_counts_interv,
+            "Explantaciones": yearly_counts_explant
+        }
+
+        # Selector en Streamlit
+        selected_option = st.selectbox("Seleccione lo que desea visualizar", list(options.keys()))
+
+        # Obtener el DataFrame correspondiente a la opción seleccionada
+        selected_variable = options[selected_option]
+
+        # Número de informes, intervenciones y explantaciones
+        num_casos = selected_variable["Casos"].sum()
+        st.write(f"Número de {selected_option}: **{num_casos}**")
+
+
 
         # Crear gráfico de línea
-        fig2 = px.line(yearly_counts, x="YEAR", y="Casos", markers=True, title="Evolución de Casos por Año")
+        fig2 = px.line(selected_variable, x="YEAR", y="Casos", markers=True, title=f"Evolución de {selected_option}")
 
         ###################### MODIFICAR. Está ajustada la ultima flecha a los datos que hay actualmente en la BBDD para que no pise la linea
 
         # Añadir anotaciones en los puntos (número de casos y porcentaje)
-        for i, row in yearly_counts.iterrows():
-            if i == len(yearly_counts) - 1:  # Si es la última anotación
+        for i, row in selected_variable.iterrows():
+            if i == len(selected_variable) - 1 and (selected_option == "Informes Totales" or selected_option == "Intervenciones"):
                 fig2.add_annotation(
                     x=row["YEAR"], y=row["Casos"],  # Punto final (donde apunta la flecha)
-                    ax=row["YEAR"] + 0.1, ay=row["Casos"] + 25,  # 🔹 Mueve el inicio 1 año a la derecha
+                    ax=row["YEAR"] + 0.1, ay=row["Casos"] + 25,  #  Mueve el inicio de la flecha +1 en x es un año máss +1 en y es un caso más
                     xref="x", yref="y",  # 🔹 Se asegura que las coordenadas sean relativas a los ejes del gráfico
                     axref="x", ayref="y",  # 🔹 Se asegura que la flecha respete los ejes
                     text=f"{int(row['Casos'])} ({row['percentage']:.1f}%)",
@@ -155,13 +188,13 @@ if uploaded_file:
         # Asegurar que solo aparezcan años enteros en el eje X
         fig2.update_layout(
             xaxis_title="Año",
-            xaxis=dict(tickmode="linear", dtick=1)  # ✅ Evita decimales en el eje X
+            xaxis=dict(tickmode="linear", dtick=1)  # Evitar decimales en el eje X
         )
-
         fig2.update_traces(mode="markers+lines", line=dict(color="#32CD32"))
 
         # Mostrar gráfico en Streamlit
         st.plotly_chart(fig2)
+
 
         # Distribución kits utilizados
 
@@ -438,12 +471,7 @@ if uploaded_file:
     with tabs[1]:
         st.header("Análisis Comercial")
         st.write(
-            "Sección dedidacada al análisis de tendencias de intervenciones por país, efectividad de informes y tiempos de efectividad.")
-
-        # Convertir columnas de fecha
-        df["DATE"] = pd.to_datetime(df["DATE"], errors='coerce')
-        df["SURGERY DATE"] = pd.to_datetime(df["SURGERY DATE"], errors='coerce')
-        df["MONTHTAC"] = df["DATE"].dt.to_period("M").astype(str)
+            "Sección dedidacada al análisis de tendencias de intervenciones por país, conversión de informes y tiempos de conversión.")
 
 
 
@@ -454,27 +482,29 @@ if uploaded_file:
                        title="Evolución de Informes por País", markers=True)
 
         fig1.update_layout(
-            xaxis_title="Año"  # Nombre del eje Y
+            xaxis_title="Año",  #Nombre eje X
+            xaxis=dict(tickmode="linear", dtick=1)  # Evitar decimales en el eje X
         )
         st.plotly_chart(fig1, use_container_width=True)
 
 
-        # Evolución anual de las intervenciones por país
 
-        df["Intervenciones"] = df["SURGERY DATE"].notna().astype(int)
-        df_intervenciones = df[df["Intervenciones"] == 1]
+        # Evolución anual de las intervenciones por país
 
         yearly_surgery_cases = df_intervenciones.groupby(["YEAR", "COUNTRY"]).size().reset_index(name="Número de Intervenciones")
         fig1 = px.line(yearly_surgery_cases, x="YEAR", y="Número de Intervenciones", color="COUNTRY",
                        title="Evolución de Intervenciones por País", markers=True)
 
-        fig1.update_layout(xaxis_title="Año")  # Nombre del eje Y
+        fig1.update_layout(
+            xaxis_title="Año",  # Nombre eje X
+            xaxis=dict(tickmode="linear", dtick=1)  # Evitar decimales en el eje X
+        )
 
         st.plotly_chart(fig1, use_container_width=True)
 
 
         # Comparación entre países
-        st.subheader("Comparación de Número de Informes e Intervenciones entre Países. Tasa de Conversión")
+        st.subheader("Comparación de Número de Informes Totales vs Intervenciones entre Países. Tasa de Conversión")
 
 
         # Determinar título con los años seleccionados
@@ -487,12 +517,13 @@ if uploaded_file:
         intervenciones = df[df["Intervenciones"] == 1].groupby("COUNTRY")["Intervenciones"].count().reset_index()
         comparacion = pd.merge(informes_generados, intervenciones, on="COUNTRY", how="left").fillna(0)
 
+        st.write(intervenciones)
+
         fig2 = px.bar(comparacion, x="COUNTRY", y=["Informes Generados", "Intervenciones"], barmode='group',
                       title=titulo_grafica)
         st.plotly_chart(fig2, use_container_width=True)
 
         # Tasa de conversión de informes a intervenciones
-        st.subheader("Tasa de Conversión de Informes a Intervenciones")
         informes_generados = df.shape[0]
         informes_convertidos = df["SURGERY DATE"].notna().sum()
         tasa_conversion = (informes_convertidos / informes_generados) * 100 if informes_generados > 0 else 0
@@ -511,14 +542,27 @@ if uploaded_file:
         else:
             titulo_grafica3 = f"tasa de Conversión por País ({', '.join(map(str, selected_years))})"
 
-        # Comparación de efectividad por país
-        conversion_por_pais = df.groupby("COUNTRY")["SURGERY DATE"].count() / df.groupby(
-            "COUNTRY").size()
+
+        # Calcular la tasa de conversión por país
+        conversion_por_pais = df.groupby("COUNTRY")["SURGERY DATE"].count() / df.groupby("COUNTRY").size()
+        # Resetear índice y renombrar columnas
         conversion_por_pais = conversion_por_pais.reset_index()
         conversion_por_pais.columns = ["País", "Tasa de Conversión"]
-        fig3 = px.bar(conversion_por_pais, x="País", y="Tasa de Conversión", title=titulo_grafica3,
-                      color="Tasa de Conversión", color_continuous_scale="Viridis")
+        # Filtrar países con tasa de conversión > 0
+        conversion_por_pais = conversion_por_pais[conversion_por_pais["Tasa de Conversión"] > 0]
+        # Crear gráfico de barras
+        fig3 = px.bar(
+            conversion_por_pais,
+            x="País",
+            y="Tasa de Conversión",
+            title=titulo_grafica3,
+            color="Tasa de Conversión",
+            color_continuous_scale="Viridis"
+        )
+        # Mostrar
         st.plotly_chart(fig3, use_container_width=True)
+
+
 
         # Determinar título con los años seleccionados
         if "Todos" in selected_years or not selected_years:
@@ -526,12 +570,29 @@ if uploaded_file:
         else:
             titulo_grafica4 = f"Mapa de Calor de Intervenciones por País ({', '.join(map(str, selected_years))})"
 
-        # Mapa de calor
+
+        # Generar la matriz de datos para el heatmap
         matrix = df.pivot_table(values='Intervenciones', index='MONTHTAC', columns='COUNTRY', aggfunc='sum',
                                 fill_value=0)
-        fig6 = px.imshow(matrix, labels={'x': 'País', 'y': 'Mes', 'color': 'Intervenciones'},
-                         title=titulo_grafica4)
-        st.plotly_chart(fig6)
+        # Filtrar países que tienen todas sus intervenciones = 0
+        matrix = matrix.loc[:, (matrix != 0).any(axis=0)]  # Elimina columnas donde todos los valores son 0
+        # Crear el mapa de calor con un tamaño más grande
+        fig6 = px.imshow(
+            matrix,
+            labels={'x': 'País', 'y': 'Mes', 'color': 'Intervenciones'},
+            title=titulo_grafica4,
+            color_continuous_scale='YlOrRd'  # Colores más visibles
+        )
+        # Ajustar el tamaño del gráfico
+        fig6.update_layout(
+            width=1000,  # Aumenta el ancho en píxeles
+            height=900,  # Aumenta la altura en píxeles
+            margin=dict(l=10, r=10, t=50, b=50)  # Reduce márgenes
+        )
+        # Mostrar con ancho completo
+        st.plotly_chart(fig6, use_container_width=True)
+
+
 
         # Tiempo de efectividad
         st.subheader("Distribución del Tiempo de Efectividad")
@@ -611,10 +672,10 @@ if uploaded_file:
 
             # Distribución de variables anatómicas clave
             st.subheader("Distribución de Variables Anatómicas")
-            variables = ["Índice de Haller", "Índice de Asimetría", "Índice de Corrección",
+            variables_anatomicas = ["Índice de Haller", "Índice de Asimetría", "Índice de Corrección",
                          "Rotación Esternal", "Elevación Potencial", "Anchura del Esternón (mínima)", "Anchura del Esternón (máxima)", "Densidad Esternal", "Densidad Cortical Esternal (superior)",
                          "Densidad Cortical Esternal (inferior)"]
-            selected_var = st.selectbox("Selecciona una variable para visualizar la distribución:", variables)
+            selected_var = st.selectbox("Selecciona una variable para visualizar la distribución:", variables_anatomicas)
 
             fig_hist = px.histogram(df, x=selected_var, nbins=20, marginal="box",
                                     title=f"Distribución de {selected_var}")
@@ -703,11 +764,11 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
             st.markdown("#### **Mapa de Calor: Correlaciones entre Variables Anatómicas, Medidas Placas/Tornillos, Edad y Efectividad**")
 
 
-            variables = ['Índice de Asimetría', 'Índice de Haller', 'Índice de Corrección', 'Rotación Esternal',
+            variables_interes = ['Índice de Asimetría', 'Índice de Haller', 'Índice de Corrección', 'Rotación Esternal',
                          'Densidad Esternal','Densidad Cortical Esternal (superior)', 'Densidad Cortical Esternal (inferior)',
                          'b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
                          'Anchura del Esternón (máxima)','Elevación Potencial', 'Edad', 'Efectividad']
-            df_correlacion = df[variables].apply(pd.to_numeric, errors='coerce')
+            df_correlacion = df[variables_interes].apply(pd.to_numeric, errors='coerce')
             correlaciones_anatomicas = df_correlacion.corr()
 
             if not correlaciones_anatomicas.empty:
@@ -841,7 +902,7 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
 
         # Frecuencia de Incidencias Intraoperatorias
-        st.write("## 📊 Frecuencia de Incidencias Intraoperatorias")
+        st.write("#### 📊 Frecuencia de Incidencias Intraoperatorias")
 
         # Contar incidencias
         frecuencia_incidencias = df_incidencias_intraoperatorias[
@@ -926,38 +987,36 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
         # Calcular porcentaje
         df_incidencias_momento["Porcentaje"] = (df_incidencias_momento["Cantidad"] / total_incidencias) * 100
 
-        # Mostrar en Streamlit
-        st.header("Análisis de Incidencias en Distintos Momentos")
+
         st.write(f"**Total de incidencias únicas:** {total_incidencias}")
         st.dataframe(df_incidencias_momento)
 
-        # Crear gráfico de pastel
+        # Gráfico pastel mostrando porcentaje de incidencias según cuando han sucedido
         st.subheader("Porcentaje de Incidencias por Momento")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.pie(df_incidencias_momento["Cantidad"], labels=df_incidencias_momento["Momento"], autopct='%1.1f%%',
-               colors=["#ff9999", "#66b3ff", "#99ff99"])
-        ax.set_title("Distribución de Incidencias")
-        st.pyplot(fig)
 
-        # Análisis de correlaciones con medidas anatómicas
-        st.subheader("Correlaciones con Factores Anatómicos de los Registros con Indicencias")
-        variables_interes = ['b (screw length)', 'a (elevator plate)', 'Anchura del Esternón (mínima)',
-                             'Anchura del Esternón (máxima)',
-                             'Índice de Haller', 'Índice de Asimetría', 'Índice de Corrección',
-                             'Rotación Esternal', 'Densidad Esternal', 'Densidad Cortical Esternal (superior)',
-                             'Densidad Cortical Esternal (inferior)',]
+        # Definir una paleta de colores según el momento de la incidencia
+        color_map = {
+            "Intraoperatorio": "#FF5733",  # Rojo intenso
+            "Follow-up": "#FFC300",  # Amarillo
+            "Explantación": "#C70039"  # Rojo oscuro
+        }
 
-        df_incidencias[variables_interes] = df_incidencias[variables_interes].apply(
-            pd.to_numeric, errors='coerce')
-        correlaciones = df_incidencias[variables_interes].corr()
+        # Crear gráfico de pastel interactivo con Plotly
+        fig = px.pie(df_incidencias_momento,
+                     names="Momento",
+                     values="Cantidad",
+                     title="Distribución de Incidencias",
+                     color="Momento",  # Asigna colores personalizados
+                     color_discrete_map=color_map,
+                     hole=0.3  # Hace que el gráfico sea tipo "donut"
+                     )
 
-        if not correlaciones.empty:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.heatmap(correlaciones, annot=True, cmap='coolwarm', fmt='.2f', ax=ax)
-            plt.title('Mapa de Calor: Correlaciones entre Incidencias y Medidas Anatómicas/del Implante')
-            st.pyplot(fig)
-        else:
-            st.warning("No hay datos suficientes para calcular correlaciones.")
+        # Personalizar etiquetas y formato
+        fig.update_traces(textinfo='percent+label',
+                          pull=[0.05] * len(df_incidencias_momento))  # Separa ligeramente los segmentos
+
+        # Mostrar en Streamlit
+        st.plotly_chart(fig)
 
         # Análisis de pacientes con incidencias en rojo
         st.subheader("🟥 Pacientes con Incidencias en Rojo vs. Base de Datos Completa")
@@ -966,6 +1025,10 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
         df_rojo = df[df['Fila Roja']]
         df_normal = df[~df['Fila Roja']]
+
+        # Convertir a numérico, forzando errores a NaN
+        df_rojo[variables_interes] = df_rojo[variables_interes].apply(pd.to_numeric, errors='coerce')
+        df_normal[variables_interes] = df_normal[variables_interes].apply(pd.to_numeric, errors='coerce')
 
         # Calcular medias
         medias_rojo = df_rojo[variables_interes].mean()
@@ -989,8 +1052,10 @@ Si la efectividad es alta (cercana a 0 o positiva), significa que la elevación 
 
         # Resaltar diferencias significativas
         def highlight_significant(val):
-            if val < 0.45:
+            if val < 0.05:
                 return 'background-color: darkred; color: white'
+            elif val < 0.45:
+                return 'background-color: #B7410E; color: white'
             elif val < 0.65:
                 return 'background-color: orange; color: black'
             elif val > 0.85:
